@@ -1,8 +1,56 @@
 ### Token-Level Debiasing in LLM for Recommendation: An Information Gain Approach
 
+Our method (IGD) builds a prefix tree from the training item dataset, and applies weighted processing to SFT and Beam Search based on each token's impact on sequence entropy.
+
+Main files:
+
+To reproduce our method:
+
+**For the fine-tuning stage:**
+
+1. To implement our method and the baseline, use `cl_monitor.sh` to call `cl_monitor.py`.  
+   - `beta` adjusts the weight of zero-IG tokens.  
+   - `gamma` adjusts the weight of high-IG tokens (no observed effect so far, can be set to 1.0).  
+   - To implement the baseline, set `beta=1.0`.  
+   - For our method, `beta=0.1` works best in general. You can grid search over:  
+     `[0.08, 0.1, 0.2, 0.4, 0.5, 0.6]`
+
+2. The CFT method uses `cft_monitor.py`. According to the original paper, search over:  
+   - `beta = 0.09, 0.16, 0.29, 0.38, 0.5, 0.66, 0.9, 0.96`  
+   - `alpha = 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.3`
+
+3. The Pos method is a part of the CFT method. Set `alpha=0`, and only tune `beta`.
+
+**For the inference stage:**
+
+4. To evaluate the performance of a single model, use `my_evaluate.sh` to call `my_evaluate.py`.  
+   To run inference with multiple parameter settings at once, use `inference.py` in `inference.sh` or `inference_for_cluster`.
+
+5. To implement inference for both the baseline and our method, adjust the `alpha` parameter in the `.sh` script:  
+   - `alpha=0.0` is the baseline.  
+   - In the inference script, you can set: `(0.0 0.1 0.2 0.3 0.4)`  
+   - `alpha=0.2` generally yields the best results.
+
+6. The BIGRec method uses the same model as D3. Just set the `length penalty` to `1.0` in the script.
+
+After model training, only `model.safetensors` will be saved.  
+The `tokenizer.json` will not be automatically generated in `output_dir`.  
+You can find the backbone model folder under `.cache/huggingface/hub` in your home directory, then find the `snapshots` folder containing the tokenizer. Copy and paste it into `output_dir` for evaluation. You can also download it manually using `wget` from the official site.
+
+**Details:**  
+Even with a fixed `batch_size`, `minibatch_size` seems to still impact model performance. The reason is currently unclear.  
+In our method, we fix `minibatch_size=16`, and it can be trained on an A100 80G GPU.  
+If you lower the value, make sure to keep it consistent.
+
+----------------------------------------------------------------------------------------
+
+
+### Token-Level Debiasing in LLM for Recommendation: An Information Gain Approach
+
 我的方法（IGD）通过train item的数据集构建一个prefix tree, 通过每一个token对序列entropy的变化来对SFT、Beam Search进行加权处理。
 主要的文件：
 
+为了复现我的方法：
 对于fine-tuning阶段：
 1. 要实现我的方法和baseline，请使用cl_monitor.sh调用cl_monitor.py。其中，beta是改变zero-ig token的权重。gamma改变high-ig token的权重（目前没发现效果，设置为1.0即可）。       
 要实现baseline，设置beta=1.0即可。我的方法的beta一般在0.1最好，可以grid search [0.08, 0.1, 0.2, 0.4, 0.5 0.6]这些值
