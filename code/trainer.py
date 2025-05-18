@@ -49,7 +49,7 @@ class IGMonitorTrainer(Trainer):
             json.dump(log_entry, f)
             f.write('\n')
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         """Compute loss with IG-based reweighting."""
         outputs = model(**inputs)
         logits = outputs.logits
@@ -346,7 +346,7 @@ class DebiasedTrainer(Trainer):
         self.beta = beta
         self.alpha = alpha
 
-    def compute_loss(self, model, inputs, return_outputs=False):
+    def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
         """
         How the loss is computed by Trainer. By default, all models return the loss in the first element.
 

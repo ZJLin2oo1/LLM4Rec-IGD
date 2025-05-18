@@ -22,7 +22,7 @@ from transformers import (
 from transformers.data.data_collator import PaddingStrategy
 from datasets import Dataset as HFDataset
 
-from code.dataset import IGDataset, CFTDataset
+from dataset import IGDataset, CFTDataset
 from trainer import DebiasedTrainer, DataCollatorForSeq2Seq_v2
 
 # Global constants
@@ -146,7 +146,7 @@ def train(
             learning_rate=learning_rate,
             bf16=True,
             optim="adamw_torch",
-            evaluation_strategy="epoch",
+            eval_strategy="epoch",
             save_strategy="epoch",
             output_dir=output_dir,
             save_total_limit=1,

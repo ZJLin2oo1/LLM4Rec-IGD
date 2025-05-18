@@ -7,7 +7,6 @@ from functools import partial
 from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple, Union
 
-import bitsandbytes as bnb
 import numpy as np
 import fire
 import torch
@@ -30,6 +29,29 @@ from trainer import IGMonitorTrainer
 user_home = os.path.expanduser("~")
 print(user_home)
 HF_TOKEN = None
+
+# Global constants
+FREQ_SCALE_DICT = {
+    "Books": 675262.0,
+    "Video_Games": 195559.0,
+    "Toys_and_Games": 111806.0,
+    "CDs_and_Vinyl": 134436.0,
+    "Sports_and_Outdoors": 160015.0
+}
+
+CATEGORY_DICT = {
+    "Office_Products": "office products",
+    "Books": "books",
+    "steam": "games",
+    "CDs_and_Vinyl": "musics",
+    "Toys_and_Games": "toys and games",
+    "Video_Games": "video games",
+    "Musical_Instruments": "music instruments",
+    "Sports_and_Outdoors": "sports and outdoors",
+    "Pet_Supplies": "pet supplies",
+    "Arts_Crafts_and_Sewing": "arts products",
+    "Movies": "movie"
+}
 
 # Learning rate scheduler with cosine decay and warmup
 def _get_cosine_schedule_with_warmup_lr_lambda(current_step, *, num_warmup_steps, num_training_steps, num_cycles):
@@ -100,22 +122,27 @@ def train(
     category: str = "",
     K: int = 0,
     beta: float = 1.0,
-    gamma: float = 1.0,
     version: str = "base"
 ):
-    frequency_scale_dict = {"Books": 675262.0, "Video_Games": 195559.0, "Toys_and_Games": 111806.0,
-                            "CDs_and_Vinyl": 134436.0, "Sports_and_Outdoors": 160015.0}
-    low_high_split_dict = {"Books": 4.759077, "Video_Games": 2.581968, "Toys_and_Games": 2.749671,
-                           "CDs_and_Vinyl": 5.556205, "Sports_and_Outdoors": 0.105027}
-    category_dict = {"Office_Products": "office products", "Books": "books", "steam": "games",
-                     "CDs_and_Vinyl": "musics", "Toys_and_Games": "toys and games", "Video_Games": "video games",
-                     "Musical_Instruments": "music instruments", "Sports_and_Outdoors": "sports and outdoors",
-                     "Pet_Supplies": "pet supplies", "Arts_Crafts_and_Sewing": "arts products", "Movies": "movie"}
+    print("Training Start")
+    assert base_model, "Please specify a --base_model"
 
-    print(f"Beta: {beta}, Gamma: {gamma}, Category: {category}")
-    frequency_scale = frequency_scale_dict[category]
-    low_high_split = low_high_split_dict[category]
-    category = category_dict[category]
+    frequency_scale = FREQ_SCALE_DICT[category]
+    category_str = category
+    category = CATEGORY_DICT[category]
+
+    gradient_accumulation_steps = batch_size // micro_batch_size
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    ddp = world_size != 1
+
+    if ddp:
+        device_map = {"": int(os.environ.get("LOCAL_RANK") or 0)}
+        gradient_accumulation_steps //= world_size
+    os.environ["WANDB_DISABLED"] = "true"
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using CUDA: {torch.cuda.is_available()}")
+    print(f"Beta: {beta}, Category: {category}")
 
     assert base_model, "Please specify a --base_model, e.g. --base_model='decapoda-research/llama-7b-hf'"
     gradient_accumulation_steps = batch_size // micro_batch_size
@@ -188,9 +215,7 @@ def train(
     # Initialize trainer
     trainer = IGMonitorTrainer(
         rf_item_trie=rf_item_trie,
-        low_high_split=low_high_split,
         beta=beta,
-        gamma=gamma,
         model=model,
         train_dataset=hf_train_dataset,
         eval_dataset=hf_val_dataset,
@@ -203,7 +228,7 @@ def train(
             learning_rate=learning_rate,
             bf16=True,
             optim="adamw_torch",
-            evaluation_strategy="epoch",
+            eval_strategy="epoch",
             save_strategy="epoch",
             output_dir=output_dir,
             save_total_limit=1,

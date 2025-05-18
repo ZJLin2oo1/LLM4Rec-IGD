@@ -1,70 +1,74 @@
-### Token-Level Debiasing in LLM for Recommendation: An Information Gain Approach
+# LLM4Rec-IGD
 
-Our method (IGD) builds a prefix tree from the training item dataset, and applies weighted processing to SFT and Beam Search based on each token's impact on sequence entropy.
+This repository contains the implementation code for the paper:
 
-Main files:
+**IGD: Token Decisiveness Modeling via Information Gain in LLMs for Personalized Recommendation**
 
-To reproduce our method:
+## Setup and Installation
 
-**For the fine-tuning stage:**
+### 1. Download Datasets
 
-1. To implement our method and the baseline, use `cl_monitor.sh` to call `cl_monitor.py`.  
-   - `beta` adjusts the weight of zero-IG tokens.  
-   - `gamma` adjusts the weight of high-IG tokens (no observed effect so far, can be set to 1.0).  
-   - To implement the baseline, set `beta=1.0`.  
-   - For our method, `beta=0.1` works best in general. You can grid search over:  
-     `[0.08, 0.1, 0.2, 0.4, 0.5, 0.6]`
+```bash
+# Take the book dataset as an example 
+# Download the dataset
+wget https://datarepo.eng.ucsd.edu/mcauley_group/data/amazon_v2/categoryFiles/Books.json.gz
+wget https://datarepo.eng.ucsd.edu/mcauley_group/data/amazon_v2/metaFiles2/meta_Books.json.gz
 
-2. The CFT method uses `cft_monitor.py`. According to the original paper, search over:  
-   - `beta = 0.09, 0.16, 0.29, 0.38, 0.5, 0.66, 0.9, 0.96`  
-   - `alpha = 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.3`
+# Unzip
+gunzip Books.json.gz
+gunzip meta_Books.json.gz
+```
 
-3. The Pos method is a part of the CFT method. Set `alpha=0`, and only tune `beta`.
+### 2. Create Python Environment
 
-**For the inference stage:**
+```bash
+conda create -n IGD python=3.10
+conda activate IGD
+pip install -r requirements.txt
+```
 
-4. To evaluate the performance of a single model, use `my_evaluate.sh` to call `my_evaluate.py`.  
-   To run inference with multiple parameter settings at once, use `inference.py` in `inference.sh` or `inference_for_cluster`.
+### 3. Preprocess Dataset
 
-5. To implement inference for both the baseline and our method, adjust the `alpha` parameter in the `.sh` script:  
-   - `alpha=0.0` is the baseline.  
-   - In the inference script, you can set: `(0.0 0.1 0.2 0.3 0.4)`  
-   - `alpha=0.2` generally yields the best results.
+```bash
+# Preprocess and extract Item-frequency information
+bash compute_item_freq.sh
+```
 
-6. The BIGRec method uses the same model as D3. Just set the `length penalty` to `1.0` in the script.
+### 4. IGD-Tuning
 
-After model training, only `model.safetensors` will be saved.  
-The `tokenizer.json` will not be automatically generated in `output_dir`.  
-You can find the backbone model folder under `.cache/huggingface/hub` in your home directory, then find the `snapshots` folder containing the tokenizer. Copy and paste it into `output_dir` for evaluation. You can also download it manually using `wget` from the official site.
+```bash
+bash ig_monitor.sh
+```
 
-**Details:**  
-Even with a fixed `batch_size`, `minibatch_size` seems to still impact model performance. The reason is currently unclear.  
-In our method, we fix `minibatch_size=16`, and it can be trained on an A100 80G GPU.  
-If you lower the value, make sure to keep it consistent.
+#### Parameter Settings for IGD-Tuning
+- `beta` adjusts the weight of zero-IG tokens.
+- To implement the baseline, set `beta=1.0`.
+- For our method, `beta=0.1` works well in general. You can grid search over:
+  `[0.08, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]`
 
-----------------------------------------------------------------------------------------
+### 5. IGD-Decoding
 
+```bash
+bash evaluate.sh
+```
 
-### Token-Level Debiasing in LLM for Recommendation: An Information Gain Approach
+#### Parameter Settings for IGD-Decoding
+- Adjust the `alpha` parameter in the `evaluate.sh` script:
+  - `alpha=0.0` is the baseline.
+  - In the inference script, you can set: `(0.0 0.1 0.2 0.3 0.4)`
+  - `alpha=0.2` generally yields the good results.
+- For D3 method, set `length penalty` to `0.0`
+- For BIGRec method, set the `length penalty` to `1.0` in the script.
 
-我的方法（IGD）通过train item的数据集构建一个prefix tree, 通过每一个token对序列entropy的变化来对SFT、Beam Search进行加权处理。
-主要的文件：
+## Comparison Methods
 
-为了复现我的方法：
-对于fine-tuning阶段：
-1. 要实现我的方法和baseline，请使用cl_monitor.sh调用cl_monitor.py。其中，beta是改变zero-ig token的权重。gamma改变high-ig token的权重（目前没发现效果，设置为1.0即可）。       
-要实现baseline，设置beta=1.0即可。我的方法的beta一般在0.1最好，可以grid search [0.08, 0.1, 0.2, 0.4, 0.5 0.6]这些值
-2. CFT方法使用cft_monitor.py。根据原文需要搜索
-beta = 0.09, 0.16, 0.29, 0.38, 0.5, 0.66, 0.9, 0.96
-alpha = 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.3
-这些范围。
-3. Pos方法是CFT方法的一部分，设置alpha=0, 只调整beta即可。
+### CFT Method
+- Uses `cft_monitor.py`. According to the original paper, search over:
+  - `beta = 0.09, 0.16, 0.29, 0.38, 0.5, 0.66, 0.9, 0.96`
+  - `alpha = 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.3`
 
-对于Inference阶段：
-4. 如果只要evaluate一个model的表现，可以使用my_evaluate.sh调用my_evaluate.py。如果要一次性跑多个参数的inference结果，使用inference.py。在inference.sh或者inference_for_cluster
-5. 要实现baseline的inference和我的方法，请调整.sh脚本中的alpha参数。alpha=0.0是baseline, 在inference脚本中可以设置(0.0 0.1 0.2 0.3 0.4)，一般在0.2时取得最好的效果。
-6. BIGRec方法使用和D3一样的模型，只要在脚本中把length penalty调整为1.0即可。
+### Pos Method
+- Part of the CFT method. Set `alpha=0`, and only tune `beta`.
 
-模型训练后只会存储model.safetensor，不会在output_dir自动生成tokenizer.json可以从home下的 .cache.huggingface.hub找到你使用的backbone模型文件夹，下面的snapshots中有tokenizer, 复制粘贴到output_dir才可以进行evaluate。当然，也可以从官网下载wget下来。
-
-一些细节：batch_size一定时，minibatch_size似乎仍会对模型性能产生影响，目前还不知道为什么。我的方法固定为16，可以使用a100 80g进行训练。若要调低，请保持一致。
+## Hardware Notes
+In our experiments, we trained our methods on an H100 96G GPU and tested on an A5000 GPU. Different hardware configurations may cause minor differences in results.

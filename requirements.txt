@@ -1,0 +1,6 @@
+numpy
+torch
+fire
+transformers
+datasets
+accelerate

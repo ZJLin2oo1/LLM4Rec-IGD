@@ -1,3 +1,4 @@
+import os
 import csv
 import json
 import argparse
@@ -63,6 +64,8 @@ def save_item_frequencies_to_json(output_json_file: str, item_frequency_dict: Di
         output_json_file (str): Path to save the output JSON file.
         item_frequency_dict (Dict[str, int]): Mapping from item_title to frequency.
     """
+    os.makedirs(os.path.dirname(output_json_file), exist_ok=True)
+
     with open(output_json_file, 'w', encoding='utf-8') as file:
         json.dump(item_frequency_dict, file, ensure_ascii=False, indent=4)
 
