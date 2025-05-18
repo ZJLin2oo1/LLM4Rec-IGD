@@ -9,8 +9,7 @@
 source ~/.bashrc
 conda activate D3
 cd /home/l/linzijie/DecodingMatters
-echo "I am here"
-python process_item_frequency.py
-#for category in "Toys_and_Games" ; do
-#python ./code/extract_rf_item.py --category ${category} --output_folder items_pool
-#done
+python compute_item_frequency.py \
+  --meta_file code/info/Video_Games_5_2012-10-2018-11.txt \
+  --train_file code/train/Video_Games_5_2012-10-2018-11.csv \
+  --output_file code/item_frequency/Video_Games.json

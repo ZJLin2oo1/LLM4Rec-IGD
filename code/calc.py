@@ -1,6 +1,3 @@
-# from transformers import GenerationConfig, LlamaForCausalLM, LlamaTokenizer
-# import transformers
-# import torch
 import os
 import fire
 import math

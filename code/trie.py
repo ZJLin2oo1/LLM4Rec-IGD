@@ -1,29 +1,53 @@
+"""
+Trie structure for storing tokenized item sequences with frequency and information gain (IG) scoring.
+
+This implementation supports:
+- Scoring prefixes based on frequency-weighted negative entropy
+- Token-level information gain (IG) and relative IG (RIG)
+- Efficient next-token score lookups
+"""
+
 import math
 from typing import Dict, Tuple, List
 
 
 class TrieNode:
+    __slots__ = ['children', 'is_end', 'frequency', 'score', 'information_gain']
+
     def __init__(self):
-        self.children = {}
-        self.is_end = False
-        self.frequency = 0
-        self.score = 0
-        self.information_gain = 0  # 新增信息增益字段
+        self.children: Dict[int, "TrieNode"] = {}
+        self.is_end: bool = False
+        self.frequency: int = 0
+        self.score: float = 0.0
+        self.information_gain: float = 0.0
 
 
 class Trie:
-    def __init__(self, tokenizer, frequency_scale=111806.0):
+    def __init__(self, tokenizer, frequency_scale: float = 111806.0):
+        """
+        Initialize the trie.
+
+        Args:
+            tokenizer: Tokenizer with an .encode method.
+            frequency_scale: A normalization constant for frequency-to-score conversion.
+        """
         self.root = TrieNode()
         self.frequency_scale = frequency_scale
         self.total_frequency = 0
         self.tokenizer = tokenizer
 
     def insert(self, item: str, frequency: int):
-        tokens = self.tokenizer.encode(item)
-        node = self.root
-        item_score = (frequency / self.frequency_scale) * math.log(frequency / self.frequency_scale)
+        """
+        Insert a tokenized item into the trie with its frequency.
 
-        # 直接更新 root 的 score
+        Args:
+            item: The raw string of the item.
+            frequency: Frequency count from training data.
+        """
+        tokens = self.tokenizer.encode(item, add_special_tokens=False)
+        node = self.root
+        norm_freq = frequency / self.frequency_scale
+        item_score = -norm_freq * math.log(norm_freq)
         self.root.score += item_score
 
         for token in tokens:
@@ -34,21 +58,19 @@ class Trie:
             node.frequency += frequency
 
         node.is_end = True
-        # node.frequency = frequency
         self.total_frequency += frequency
 
-    def get_trie_score(self, sequence: str):
-        tokens = self.tokenizer.encode(sequence)
-        node = self.root
+    def get_trie_score(self, sequence: str) -> float:
+        """
+        Get the score of a string sequence.
+        """
+        tokens = self.tokenizer.encode(sequence, add_special_tokens=False)
+        return self.get_trie_score_by_tokens(tokens)
 
-        for token in tokens:
-            if token not in node.children:
-                return float('-inf')
-            node = node.children[token]
-
-        return node.score
-
-    def get_trie_score_by_tokens(self, tokens):
+    def get_trie_score_by_tokens(self, tokens: List[int]) -> float:
+        """
+        Get the score of a tokenized sequence.
+        """
         node = self.root
         for token in tokens:
             if token not in node.children:
@@ -58,87 +80,63 @@ class Trie:
 
     def get_next_token_scores(self, tokens: List[int]) -> Tuple[float, Dict[int, float]]:
         """
-        获取当前序列的得分以及所有可能的下一个token及其对应序列的得分
+        Get the score of the current sequence and all possible next-token extensions.
 
         Args:
-            tokens: 当前序列的token列表
+            tokens: Current token sequence.
 
         Returns:
-            tuple: (current_score, {token_id: next_sequence_score})
-                - current_score: 当前序列的得分
-                - Dict[token_id, score]: 所有可能的下一个token及其对应的序列得分
+            current_score: Score of the current sequence.
+            next_token_scores: Dict of token → score for each next possible token.
         """
-        # 找到当前序列对应的节点
         node = self.root
-        prev_node = None
         for token in tokens:
             if token not in node.children:
                 return float('-inf'), {}
-            prev_node = node
             node = node.children[token]
 
-        # 获取当前序列的得分
         current_score = node.score
-
-        # 收集所有可能的下一个token及其得分
-        next_token_scores = {}
-        for token, child in node.children.items():
-            next_token_scores[token] = child.score
-
+        next_token_scores = {token: child.score for token, child in node.children.items()}
         return current_score, next_token_scores
 
-    def get_current_token_scores(self, tokens: List[int]) -> Tuple[float, Dict[int, float]]:
-        # 找到当前序列对应的节点
-        node = self.root
-        for token in tokens:
-            if token not in node.children:
-                return float('-inf'), {}
-            node = node.children[token]
-
-        # 获取当前序列的得分
-        current_score = node.score
-        return current_score
-
-    def get_last_score_difference(self, tokens: List[int]) -> float:
+    def get_current_token_scores(self, tokens: List[int]) -> float:
         """
-        直接查询最后一个 token 的 information_gain
+        Return the score of the current token sequence only.
         """
-        if not tokens:
-            return float('-inf')
-
         node = self.root
         for token in tokens:
             if token not in node.children:
                 return float('-inf')
             node = node.children[token]
+        return node.score
 
+    def get_last_score_difference(self, tokens: List[int]) -> float:
+        """
+        Get the information gain of the final token in the sequence.
+        """
+        if not tokens:
+            return float('-inf')
+        node = self.root
+        for token in tokens:
+            if token not in node.children:
+                return float('-inf')
+            node = node.children[token]
         return node.information_gain
 
     def compute_information_gain(self):
         """
-        遍历整个 Trie，为所有节点计算 last_score - prev_score，存入 information_gain
+        Compute information gain for all nodes using: IG = parent_score - child_score
         """
-
-        def dfs(node, parent_score):
-            for token, child in node.children.items():
-                child.information_gain = child.score - parent_score
-                dfs(child, child.score)
-
-        dfs(self.root, self.root.score)
+        stack = [(self.root, self.root.score)]
+        while stack:
+            node, parent_score = stack.pop()
+            for child in node.children.values():
+                child.information_gain = parent_score - child.score
+                stack.append((child, child.score))
 
     def get_information_gain_statistics(self):
         """
-        统计整个Trie中节点的信息增益分布
-        Returns:
-            dict: 包含不同信息增益范围的统计信息
-            {
-                'freq_zero': 信息增益为0的节点的频率之和,
-                'freq_small': 信息增益在(0,1]范围内的节点的频率之和,
-                'freq_medium': 信息增益在(1,2]范围内的节点的频率之和,
-                'freq_large': 信息增益大于2的节点的频率之和,
-                'total_nodes': 总节点数（不包括根节点）,
-                'total_frequency': 所有节点的频率之和
-            }
+        Return IG-based token statistics over the whole Trie.
         """
         stats = {
             'freq_zero': 0,
@@ -148,11 +146,12 @@ class Trie:
             'total_frequency': 0
         }
 
-        def dfs(node: TrieNode):
-            if node is not self.root:  # 跳过根节点
+        stack = [self.root]
+        while stack:
+            node = stack.pop()
+            if node is not self.root:
                 stats['total_nodes'] += 1
                 stats['total_frequency'] += node.frequency
-
                 ig = node.information_gain
                 if ig == 0:
                     stats['freq_zero'] += node.frequency
@@ -160,36 +159,50 @@ class Trie:
                     stats['freq_small'] += node.frequency
                 else:
                     stats['freq_large'] += node.frequency
-
-            # 递归处理所有子节点
-            for child in node.children.values():
-                dfs(child)
-
-        # 从根节点开始深度优先遍历
-        dfs(self.root)
-
+            stack.extend(node.children.values())
         return stats
 
     def get_sequence_ig(self, tokens: List[int]) -> List[float]:
         """
-        获取输入序列中每个 token 的 information gain 值。
+        Return the information gain value for each token in the sequence.
 
         Args:
-            tokens: 输入序列的 token 列表。
+            tokens: Tokenized input sequence.
 
         Returns:
-            List[float]: 每个 token 对应的 information gain 值列表。
-                        如果某个 token 不在 Trie 中，则返回 float('-inf')。
+            List of IG values (float) per token. Returns -inf if token path is invalid.
         """
-        ig_list = []  # 存储每个 token 的 information gain
-        node = self.root  # 从根节点开始
-
+        ig_list = []
+        node = self.root
         for token in tokens:
             if token not in node.children:
-                # 如果 token 不在 Trie 中，返回 float('-inf')
                 ig_list.append(float('-inf'))
                 break
             node = node.children[token]
-            ig_list.append(node.information_gain)  # 添加当前 token 的 information gain
-
+            ig_list.append(node.information_gain)
         return ig_list
+
+    def get_sequence_rig(self, tokens: List[int]) -> List[float]:
+        """
+        Return the relative information gain (RIG) for each token in the sequence.
+
+        RIG = 1 - score(child) / score(parent)
+
+        Args:
+            tokens: Tokenized input sequence.
+
+        Returns:
+            List of RIG values per token. -inf if the token path breaks.
+        """
+        rig_list = []
+        node = self.root
+        for token in tokens:
+            if token not in node.children:
+                rig_list.append(float('-inf'))
+                break
+            current_score = node.score
+            node = node.children[token]
+            next_score = node.score
+            rig = 1 - (next_score / current_score) if current_score != 0 else 0.0
+            rig_list.append(rig)
+        return rig_list
