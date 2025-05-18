@@ -29,7 +29,7 @@ from trainer import IGMonitorTrainer
 # Set home directory and Hugging Face token
 user_home = os.path.expanduser("~")
 print(user_home)
-HF_TOKEN = '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'
+HF_TOKEN = None
 
 # Learning rate scheduler with cosine decay and warmup
 def _get_cosine_schedule_with_warmup_lr_lambda(current_step, *, num_warmup_steps, num_training_steps, num_cycles):
