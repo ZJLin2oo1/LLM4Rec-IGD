@@ -8,7 +8,6 @@
 
 source ~/.bashrc
 conda activate IGD
-#cd /home/l/linzijie/DecodingMatters
 
 #for category in "Toys_and_Games" ; do
 #for category in "Books" ; do
@@ -32,7 +31,7 @@ for category in "Books" ; do
         --reference_item_path ./code/item_frequency/${category}.json \
         --test_data_path ./temp/${category}_base/${i}.csv \
         --result_json_data ./temp/${category}_base/${i}.json \
-        --alpha 0.0 \
+        --alpha 0.1 \
         --length_penalty 0.0  # length_penalty = 1.0 for BIGRec
     done
     wait
