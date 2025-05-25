@@ -8,8 +8,13 @@
 
 source ~/.bashrc
 conda activate D3
-#cd /home/l/linzijie/DecodingMatters
-#for category in "Toys_and_Games" "Sports_and_Outdoors" "CDs_and_Vinyl" "Video_Games" "Books"
+
+# Toys_and_Games: beta=0.5
+# CDs_and_Vinyl: beta=0.1
+# Video_Games: beta=0.2
+# Books: beta=0.1
+
+#for category in "Toys_and_Games" "CDs_and_Vinyl" "Video_Games" "Books"
 for category in "Video_Games" ; do
     train_file=$(ls -f ./code/train/${category}*11.csv)
     eval_file=$(ls -f ./code/valid/${category}*11.csv)
@@ -24,8 +29,7 @@ for category in "Video_Games" ; do
         --reference_item_path ./code/item_frequency/${category}.json \
         --output_dir ./output_dir_ig/${category} \
         --category ${category} \
-        --beta 0.1 \
-#    cp Qwen/Qwen2-0.5B*token* ./output_dir/${category}/
+        --beta 0.1 
 done
 
 
