@@ -15,9 +15,9 @@ from transformers import (
 )
 
 # Local modules for dataset and custom trie-based decoding logic
-from dataset import D3Dataset
+from dataset import IGDataset
 from LogitProcesser import TrieLogitsProcessor
-from trie_optimized import Trie
+from trie import Trie
 
 # Optionally import LoRA if available
 try:
@@ -109,7 +109,7 @@ def evaluate(model, tokenizer, encodings, rf_item_trie, temperature, length_pena
     with torch.no_grad():
         logits_processor = LogitsProcessorList([
             TemperatureLogitsWarper(temperature=temperature),
-            TrieLogitsProcessor(None, tokenizer, num_beams, rf_item_trie, alpha)
+            TrieLogitsProcessor(tokenizer=tokenizer, num_beams=num_beams, trie=rf_item_trie, alpha=alpha)
         ])
         output = model.generate(
             input_ids=padded_encodings["input_ids"].to(device),
@@ -191,7 +191,7 @@ def main(
         info = [f"""### Response: \n{line}""" for line in info_lines]
 
     # Load evaluation dataset and Trie
-    val_dataset = D3Dataset(train_file=test_data_path, tokenizer=tokenizer, max_len=2560, category=category, test=True, K=K, seed=seed)
+    val_dataset = IGDataset(train_file=test_data_path, tokenizer=tokenizer, max_len=2560, category=category, test=True, K=K, seed=seed)
     rf_item_trie = load_titles_to_trie_from_json(reference_item_path, tokenizer, frequency_scale)
     encodings = [val_dataset.__getitem__(i) for i in range(len(val_dataset))]
     test_data = val_dataset.get_all()

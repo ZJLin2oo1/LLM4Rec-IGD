@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List, Callable
 import torch
 import numpy as np
 from transformers.generation import LogitsProcessor
